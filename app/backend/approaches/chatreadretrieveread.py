@@ -60,10 +60,14 @@ If you cannot generate a search query, return just the number 0.
     async def run(self, history: list[dict[str, str]], overrides: dict[str, Any]) -> Any:
         has_text = overrides.get("retrieval_mode") in ["text", "hybrid", None]
         has_vector = overrides.get("retrieval_mode") in ["vectors", "hybrid", None]
-        use_semantic_captions = True if overrides.get("semantic_captions") and has_text else False
+        use_semantic_captions = bool(overrides.get("semantic_captions") and has_text)
         top = overrides.get("top") or 3
         exclude_category = overrides.get("exclude_category") or None
-        filter = "category ne '{}'".format(exclude_category.replace("'", "''")) if exclude_category else None
+        filter = (
+            f"""category ne '{exclude_category.replace("'", "''")}'"""
+            if exclude_category
+            else None
+        )
 
         user_q = 'Generate search query for: ' + history[-1]["user"]
 
@@ -97,7 +101,6 @@ If you cannot generate a search query, return just the number 0.
         else:
             query_vector = None
 
-         # Only keep the text query if the retrieval mode uses text, otherwise drop it
         if not has_text:
             query_text = None
 
@@ -122,9 +125,16 @@ If you cannot generate a search query, return just the number 0.
                                           top_k=50 if query_vector else None,
                                           vector_fields="embedding" if query_vector else None)
         if use_semantic_captions:
-            results = [doc[self.sourcepage_field] + ": " + nonewlines(" . ".join([c.text for c in doc['@search.captions']])) async for doc in r]
+            results = [
+                f"{doc[self.sourcepage_field]}: "
+                + nonewlines(" . ".join([c.text for c in doc['@search.captions']]))
+                async for doc in r
+            ]
         else:
-            results = [doc[self.sourcepage_field] + ": " + nonewlines(doc[self.content_field]) async for doc in r]
+            results = [
+                f"{doc[self.sourcepage_field]}: {nonewlines(doc[self.content_field])}"
+                async for doc in r
+            ]
         content = "\n".join(results)
 
         follow_up_questions_prompt = self.follow_up_questions_prompt_content if overrides.get("suggest_followup_questions") else ""
